@@ -1,0 +1,9 @@
+# Database
+grades.db
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

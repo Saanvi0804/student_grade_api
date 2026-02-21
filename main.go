@@ -1,19 +1,21 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
-	"gorm.io/gorm"
-	"time"
 	"github.com/golang-jwt/jwt/v5"
-	"strings"
-	"fmt"
+	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 var db *gorm.DB
 var jwtKey = []byte("secret_key")
+
 
 type User struct {
 	ID       uint   `gorm:"primaryKey"`
@@ -40,6 +42,8 @@ type Grade struct {
 	Score        float64
 }
 
+// ================== MAIN ==================
+
 func main() {
 
 	database, err := gorm.Open(sqlite.Open("grades.db"), &gorm.Config{})
@@ -49,15 +53,11 @@ func main() {
 
 	db = database
 
-	// Migrate database FIRST
 	db.AutoMigrate(&User{}, &Course{}, &Enrollment{}, &Grade{})
-
-	// Seed users FIRST
 	seedData()
 
 	r := gin.Default()
 
-	// Register routes BEFORE Run()
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "API is running"})
 	})
@@ -69,14 +69,20 @@ func main() {
 
 	protected.GET("/protected", roleMiddleware("admin", "teacher", "student"), func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "You accessed a protected route"})
-})
+	})
+
 	protected.POST("/courses", roleMiddleware("admin"), createCourse)
 	protected.POST("/enroll", roleMiddleware("admin"), enrollStudent)
 	protected.POST("/grades", roleMiddleware("teacher"), assignGrade)
-	protected.GET("/students/:id/performance", roleMiddleware("admin", "teacher", "student"), getPerformance)
-	// Run server LAST
+	protected.GET("/students/:id/performance",
+		roleMiddleware("admin", "teacher", "student"),
+		getPerformance,
+	)
+
 	r.Run(":8080")
 }
+
+// ================== SEED DATA ==================
 
 func seedData() {
 	var count int64
@@ -86,14 +92,47 @@ func seedData() {
 	}
 
 	users := []User{
-		{Name: "Admin", Email: "admin@test.com", Password: "123", Role: "admin"},
-		{Name: "Teacher", Email: "teacher@test.com", Password: "123", Role: "teacher"},
-		{Name: "Student", Email: "student@test.com", Password: "123", Role: "student"},
+		{Name: "Admin", Email: "admin@test.com", Password: hashPassword("123"), Role: "admin"},
+		{Name: "Teacher", Email: "teacher@test.com", Password: hashPassword("123"), Role: "teacher"},
+		{Name: "Student", Email: "student@test.com", Password: hashPassword("123"), Role: "student"},
 	}
 
 	for _, u := range users {
 		db.Create(&u)
 	}
+}
+
+// ================== AUTH ==================
+
+func login(c *gin.Context) {
+	var input struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	if err := c.BindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
+		return
+	}
+
+	var user User
+	if err := db.Where("email = ?", input.Email).First(&user).Error; err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+		return
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(input.Password)); err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+		return
+	}
+
+	token, err := generateToken(user)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not generate token"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"token": token})
 }
 
 func generateToken(user User) (string, error) {
@@ -105,24 +144,6 @@ func generateToken(user User) (string, error) {
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(jwtKey)
-}
-
-func login(c *gin.Context) {
-	var input struct {
-		Email    string
-		Password string
-	}
-
-	c.BindJSON(&input)
-
-	var user User
-	if err := db.Where("email = ? AND password = ?", input.Email, input.Password).First(&user).Error; err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
-		return
-	}
-
-	token, _ := generateToken(user)
-	c.JSON(http.StatusOK, gin.H{"token": token})
 }
 
 func authMiddleware() gin.HandlerFunc {
@@ -180,12 +201,11 @@ func roleMiddleware(roles ...string) gin.HandlerFunc {
 	}
 }
 
+
 func createCourse(c *gin.Context) {
-
 	var course Course
-	c.BindJSON(&course)
 
-	if course.Title == "" {
+	if err := c.BindJSON(&course); err != nil || course.Title == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Course title required"})
 		return
 	}
@@ -195,13 +215,20 @@ func createCourse(c *gin.Context) {
 }
 
 func enrollStudent(c *gin.Context) {
-
 	var input struct {
-		UserID   uint
-		CourseID uint
+		UserID   uint `json:"user_id"`
+		CourseID uint `json:"course_id"`
 	}
 
-	c.BindJSON(&input)
+	if err := c.BindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
+		return
+	}
+
+	if input.UserID == 0 || input.CourseID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user or course ID"})
+		return
+	}
 
 	enrollment := Enrollment{
 		UserID:   input.UserID,
@@ -213,13 +240,20 @@ func enrollStudent(c *gin.Context) {
 }
 
 func assignGrade(c *gin.Context) {
-
 	var input struct {
-		EnrollmentID uint
-		Score        float64
+		EnrollmentID uint    `json:"enrollment_id"`
+		Score        float64 `json:"score"`
 	}
 
-	c.BindJSON(&input)
+	if err := c.BindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
+		return
+	}
+
+	if input.EnrollmentID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid enrollment ID"})
+		return
+	}
 
 	if input.Score < 0 || input.Score > 100 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Score must be between 0 and 100"})
@@ -234,6 +268,7 @@ func assignGrade(c *gin.Context) {
 	db.Create(&grade)
 	c.JSON(http.StatusOK, grade)
 }
+
 
 func getPerformance(c *gin.Context) {
 
@@ -265,4 +300,10 @@ func getPerformance(c *gin.Context) {
 		"average_score": avg,
 		"gpa":           fmt.Sprintf("%.2f", gpa),
 	})
+}
+
+
+func hashPassword(password string) string {
+	hashed, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	return string(hashed)
 }
