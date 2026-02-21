@@ -8,6 +8,7 @@ import (
 	"gorm.io/gorm"
 	"time"
 	"github.com/golang-jwt/jwt/v5"
+	"strings"
 )
 
 var db *gorm.DB
@@ -62,6 +63,12 @@ func main() {
 
 	r.POST("/login", login)
 
+	protected := r.Group("/")
+	protected.Use(authMiddleware())
+
+	protected.GET("/protected", roleMiddleware("admin", "teacher", "student"), func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"message": "You accessed a protected route"})
+})
 	// Run server LAST
 	r.Run(":8080")
 }
@@ -111,4 +118,59 @@ func login(c *gin.Context) {
 
 	token, _ := generateToken(user)
 	c.JSON(http.StatusOK, gin.H{"token": token})
+}
+
+func authMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Missing token"})
+			c.Abort()
+			return
+		}
+
+		parts := strings.Split(authHeader, "Bearer ")
+		if len(parts) != 2 {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token format"})
+			c.Abort()
+			return
+		}
+
+		tokenStr := parts[1]
+
+		token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
+			return jwtKey, nil
+		})
+
+		if err != nil || !token.Valid {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+			c.Abort()
+			return
+		}
+
+		claims := token.Claims.(jwt.MapClaims)
+
+		c.Set("user_id", uint(claims["user_id"].(float64)))
+		c.Set("role", claims["role"].(string))
+
+		c.Next()
+	}
+}
+
+func roleMiddleware(roles ...string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		userRole := c.GetString("role")
+
+		for _, role := range roles {
+			if role == userRole {
+				c.Next()
+				return
+			}
+		}
+
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+		c.Abort()
+	}
 }
