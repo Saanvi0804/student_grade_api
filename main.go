@@ -91,15 +91,32 @@ func seedData() {
 		return
 	}
 
-	users := []User{
-		{Name: "Admin", Email: "admin@test.com", Password: hashPassword("123"), Role: "admin"},
-		{Name: "Teacher", Email: "teacher@test.com", Password: hashPassword("123"), Role: "teacher"},
-		{Name: "Student", Email: "student@test.com", Password: hashPassword("123"), Role: "student"},
-	}
+	// Create users
+	admin := User{Name: "Admin", Email: "admin@test.com", Password: hashPassword("123"), Role: "admin"}
+	teacher := User{Name: "Teacher", Email: "teacher@test.com", Password: hashPassword("123"), Role: "teacher"}
+	student := User{Name: "Student", Email: "student@test.com", Password: hashPassword("123"), Role: "student"}
 
-	for _, u := range users {
-		db.Create(&u)
+	db.Create(&admin)
+	db.Create(&teacher)
+	db.Create(&student)
+
+	// Create course
+	course := Course{Title: "Mathematics"}
+	db.Create(&course)
+
+	// Enroll student properly using actual ID
+	enrollment := Enrollment{
+		UserID:   student.ID,
+		CourseID: course.ID,
 	}
+	db.Create(&enrollment)
+
+	// Assign grade
+	grade := Grade{
+		EnrollmentID: enrollment.ID,
+		Score:        85,
+	}
+	db.Create(&grade)
 }
 
 // ================== AUTH ==================
