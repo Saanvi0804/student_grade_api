@@ -9,6 +9,7 @@ import (
 	"time"
 	"github.com/golang-jwt/jwt/v5"
 	"strings"
+	"fmt"
 )
 
 var db *gorm.DB
@@ -69,6 +70,10 @@ func main() {
 	protected.GET("/protected", roleMiddleware("admin", "teacher", "student"), func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "You accessed a protected route"})
 })
+	protected.POST("/courses", roleMiddleware("admin"), createCourse)
+	protected.POST("/enroll", roleMiddleware("admin"), enrollStudent)
+	protected.POST("/grades", roleMiddleware("teacher"), assignGrade)
+	protected.GET("/students/:id/performance", roleMiddleware("admin", "teacher", "student"), getPerformance)
 	// Run server LAST
 	r.Run(":8080")
 }
@@ -173,4 +178,91 @@ func roleMiddleware(roles ...string) gin.HandlerFunc {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
 		c.Abort()
 	}
+}
+
+func createCourse(c *gin.Context) {
+
+	var course Course
+	c.BindJSON(&course)
+
+	if course.Title == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Course title required"})
+		return
+	}
+
+	db.Create(&course)
+	c.JSON(http.StatusOK, course)
+}
+
+func enrollStudent(c *gin.Context) {
+
+	var input struct {
+		UserID   uint
+		CourseID uint
+	}
+
+	c.BindJSON(&input)
+
+	enrollment := Enrollment{
+		UserID:   input.UserID,
+		CourseID: input.CourseID,
+	}
+
+	db.Create(&enrollment)
+	c.JSON(http.StatusOK, enrollment)
+}
+
+func assignGrade(c *gin.Context) {
+
+	var input struct {
+		EnrollmentID uint
+		Score        float64
+	}
+
+	c.BindJSON(&input)
+
+	if input.Score < 0 || input.Score > 100 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Score must be between 0 and 100"})
+		return
+	}
+
+	grade := Grade{
+		EnrollmentID: input.EnrollmentID,
+		Score:        input.Score,
+	}
+
+	db.Create(&grade)
+	c.JSON(http.StatusOK, grade)
+}
+
+func getPerformance(c *gin.Context) {
+
+	studentID := c.Param("id")
+
+	var enrollments []Enrollment
+	db.Where("user_id = ?", studentID).Find(&enrollments)
+
+	var total float64
+	var count int64
+
+	for _, e := range enrollments {
+		var grade Grade
+		if err := db.Where("enrollment_id = ?", e.ID).First(&grade).Error; err == nil {
+			total += grade.Score
+			count++
+		}
+	}
+
+	if count == 0 {
+		c.JSON(http.StatusOK, gin.H{"message": "No grades found"})
+		return
+	}
+
+	avg := total / float64(count)
+	gpa := (avg / 100) * 4
+
+	c.JSON(http.StatusOK, gin.H{
+		"average_score": avg,
+		"gpa":           fmt.Sprintf("%.2f", gpa),
+	})
 }
