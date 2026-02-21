@@ -1,237 +1,256 @@
-📘 Student Grade Management System API
-📌 Project Overview
+# Student Grade Management System API
 
-This project is a RESTful API built using Go (Golang) and the Gin framework to simulate a university-grade management system similar to Canvas or Blackboard.
+## Overview
+
+This project is a RESTful API built using Go (Golang) and the Gin framework that simulates a university grade management system.
 
 The system supports:
 
-Role-based authentication (Admin, Teacher, Student)
+- Role-based authentication (Admin, Teacher, Student)
+- Course creation
+- Student enrollment
+- Grade assignment
+- GPA calculation
+- JWT-based authentication
+- Password hashing using bcrypt
 
-Course creation
+This project demonstrates backend architecture design, middleware implementation, secure authentication, and relational database handling.
 
-Student enrollment
+---
 
-Grade assignment
+## Tech Stack
 
-GPA calculation
+- Go (Golang)
+- Gin Framework
+- GORM
+- SQLite (glebarez/sqlite driver)
+- JWT (golang-jwt)
+- bcrypt (password hashing)
 
-Secure JWT-based authentication
+---
 
-Password hashing using bcrypt
+## System Architecture
 
-This project demonstrates secure backend architecture, middleware implementation, role-based access control, and relational database handling.
+- Gin handles HTTP routing.
+- GORM manages database interactions.
+- SQLite provides lightweight local storage.
+- JWT enables stateless authentication.
+- Middleware enforces authentication and role-based authorization.
+- bcrypt securely hashes passwords before storing them.
 
-🛠 Tech Stack
+---
 
-Language: Go (Golang)
+## Role-Based Access Control
 
-Framework: Gin
+| Role    | Login | Create Course | Enroll Student | Assign Grade | View GPA |
+|---------|--------|---------------|----------------|--------------|----------|
+| Admin   | Yes    | Yes           | Yes            | No           | Yes      |
+| Teacher | Yes    | No            | No             | Yes          | Yes      |
+| Student | Yes    | No            | No             | No           | Yes      |
 
-ORM: GORM
+---
 
-Database: SQLite (Pure Go Driver – glebarez/sqlite)
+## API Endpoints
 
-Authentication: JWT (golang-jwt)
+### Public Routes
 
-Password Security: bcrypt
-
-🏗 System Architecture
-
-Gin handles HTTP routing.
-
-GORM manages database interactions.
-
-SQLite provides lightweight local storage.
-
-JWT enables stateless authentication.
-
-Middleware enforces authentication and role-based authorization.
-
-bcrypt securely hashes user passwords before storage.
-
-🔐 Role-Based Access Control
-Role	Login	Create Course	Enroll Student	Assign Grade	View GPA
-Admin	✅	✅	✅	❌	✅
-Teacher	✅	❌	❌	✅	✅
-Student	✅	❌	❌	❌	✅
-🔁 API Endpoints
-🔓 Public Routes
-Health Check
+#### Health Check
 GET /health
-Login
+
+#### Login
 POST /login
 
-Example Body:
+Example Request Body:
 
+```json
 {
   "email": "admin@test.com",
   "password": "123"
 }
-🔒 Protected Routes
+```
 
-All protected routes require:
+---
+
+### Protected Routes
+
+All protected routes require the following header:
 
 Authorization: Bearer <JWT_TOKEN>
-Create Course (Admin Only)
+
+---
+
+#### Create Course (Admin Only)
 POST /courses
 
-Body:
+Example Body:
 
+```json
 {
   "title": "Operating Systems"
 }
-Enroll Student (Admin Only)
+```
+
+---
+
+#### Enroll Student (Admin Only)
 POST /enroll
 
-Body:
+Example Body:
 
+```json
 {
   "user_id": 3,
   "course_id": 1
 }
-Assign Grade (Teacher Only)
+```
+
+---
+
+#### Assign Grade (Teacher Only)
 POST /grades
 
-Body:
+Example Body:
 
+```json
 {
   "enrollment_id": 1,
   "score": 88
 }
-View Student GPA
+```
+
+---
+
+#### View Student Performance
 GET /students/:id/performance
 
 Example:
-
 GET /students/3/performance
 
 Example Response:
 
+```json
 {
   "average_score": 88,
   "gpa": "3.52"
 }
-🧮 GPA Calculation Logic
+```
 
-Fetch all enrollments for the student.
+---
 
-Fetch grades linked to those enrollments.
+## GPA Calculation Logic
 
-Compute the average score.
-
-Convert percentage to 4-point scale.
+1. Fetch all enrollments for the student.
+2. Fetch grades linked to those enrollments.
+3. Compute the average score.
+4. Convert percentage to a 4-point GPA scale.
 
 Formula:
 
 GPA = (average_score / 100) * 4
-🔐 Security Features
 
-JWT-based stateless authentication
+---
 
-Role-based authorization middleware
+## Database Schema
 
-Password hashing using bcrypt
+### User
+- ID (Primary Key)
+- Name
+- Email (Unique)
+- Password (Hashed)
+- Role (admin / teacher / student)
 
-Input validation
+### Course
+- ID
+- Title
 
-Token expiration handling
+### Enrollment
+- ID
+- UserID (Foreign Key)
+- CourseID (Foreign Key)
 
-Protected routes
+### Grade
+- ID
+- EnrollmentID (Foreign Key)
+- Score
 
-🗄 Database Schema
-User
+Relationships:
+- One User can enroll in multiple Courses.
+- One Course can have multiple Students.
+- One Enrollment has one Grade.
 
-ID (Primary Key)
+---
 
-Name
+## Authentication Flow
 
-Email (Unique)
+1. User logs in with email and password.
+2. Password is verified using bcrypt.
+3. A JWT token is generated containing:
+   - user_id
+   - role
+   - expiration time
+4. Token must be included in the Authorization header for protected routes.
 
-Password (Hashed)
+---
 
-Role (admin / teacher / student)
+## Security Features
 
-Course
+- JWT-based stateless authentication
+- Role-based authorization middleware
+- Password hashing using bcrypt
+- Input validation
+- Token expiration handling
+- Protected endpoints
 
-ID
+---
 
-Title
+## Setup Instructions
 
-Enrollment
-
-ID
-
-UserID (Foreign Key)
-
-CourseID (Foreign Key)
-
-Grade
-
-ID
-
-EnrollmentID (Foreign Key)
-
-Score
-
-🚀 Setup Instructions
-1️⃣ Install Dependencies
+### Install Dependencies
 go mod tidy
-2️⃣ Run the Application
+
+### Run the Application
 go run main.go
-3️⃣ Start Fresh (Optional)
 
-Delete:
+### Reset Database (Optional)
+Delete grades.db and restart the server.
 
-grades.db
+---
 
-before running again to reset the database.
+## Recommended Test Flow
 
-🧪 Recommended Test Flow
+1. Login as Admin
+2. Create Course
+3. Enroll Student
+4. Login as Teacher
+5. Assign Grade
+6. View GPA
 
-Login as Admin
+---
 
-Create Course
+## Design Decisions
 
-Enroll Student
+- JWT chosen for stateless and scalable authentication.
+- Middleware ensures separation of authentication and business logic.
+- bcrypt used to securely hash passwords.
+- SQLite selected for lightweight and zero-configuration setup.
+- Role-based control models real academic hierarchy.
 
-Login as Teacher
+---
 
-Assign Grade
+## Future Improvements
 
-View GPA
+- Add composite unique constraints to prevent duplicate enrollments
+- Add refresh token support
+- Implement pagination for large datasets
+- Migrate to PostgreSQL for scalability
+- Add structured logging and monitoring
+- Containerize using Docker
 
-🧠 Design Decisions
+---
 
-JWT chosen for stateless and scalable authentication.
+## Repository Contents
 
-Middleware ensures separation of authentication and business logic.
-
-bcrypt used to securely hash passwords.
-
-SQLite selected for lightweight, zero-configuration setup.
-
-Role-based control models real academic hierarchy.
-
-🔮 Future Improvements
-
-Prevent duplicate enrollments using composite unique constraints
-
-Add refresh token support
-
-Implement pagination for large datasets
-
-Migrate to PostgreSQL for production scalability
-
-Add logging and monitoring
-
-Containerize using Docker
-
-📂 Repository Contents
-
-main.go — Complete API implementation
-
-README.md — Project overview and usage
-
-DESIGN.md — Detailed design documentation
-
-AI_PROMPTS.md — Transparency of AI-assisted development
+- main.go – API implementation
+- README.md – Project documentation
+- DESIGN.md – Detailed design explanation
+- AI_PROMPTS.md – AI prompt transparency
