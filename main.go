@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -14,7 +16,15 @@ import (
 )
 
 var db *gorm.DB
-var jwtKey = []byte("secret_key")
+
+func jwtKey() []byte {
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		log.Println("WARNING: JWT_SECRET not set. Set this environment variable in production!")
+		secret = "change-me-in-production"
+	}
+	return []byte(secret)
+}
 
 
 type User struct {
@@ -91,7 +101,6 @@ func seedData() {
 		return
 	}
 
-	// Create users
 	admin := User{Name: "Admin", Email: "admin@test.com", Password: hashPassword("123"), Role: "admin"}
 	teacher := User{Name: "Teacher", Email: "teacher@test.com", Password: hashPassword("123"), Role: "teacher"}
 	student := User{Name: "Student", Email: "student@test.com", Password: hashPassword("123"), Role: "student"}
@@ -100,18 +109,15 @@ func seedData() {
 	db.Create(&teacher)
 	db.Create(&student)
 
-	// Create course
 	course := Course{Title: "Mathematics"}
 	db.Create(&course)
 
-	// Enroll student properly using actual ID
 	enrollment := Enrollment{
 		UserID:   student.ID,
 		CourseID: course.ID,
 	}
 	db.Create(&enrollment)
 
-	// Assign grade
 	grade := Grade{
 		EnrollmentID: enrollment.ID,
 		Score:        85,
@@ -160,7 +166,7 @@ func generateToken(user User) (string, error) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(jwtKey)
+	return token.SignedString(jwtKey())
 }
 
 func authMiddleware() gin.HandlerFunc {
@@ -183,7 +189,10 @@ func authMiddleware() gin.HandlerFunc {
 		tokenStr := parts[1]
 
 		token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
-			return jwtKey, nil
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, jwt.ErrSignatureInvalid
+			}
+			return jwtKey(), nil
 		})
 
 		if err != nil || !token.Valid {

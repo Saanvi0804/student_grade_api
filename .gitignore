@@ -1,9 +1,11 @@
-# Database
-grades.db
+# Environment variables - never commit this
+.env
 
-# OS files
+# SQLite database
+*.db
+
+# Compiled binary
+grade-api
+
+# Mac junk
 .DS_Store
-Thumbs.db
-
-# Logs
-*.log
