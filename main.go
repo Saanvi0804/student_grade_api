@@ -300,6 +300,14 @@ func getPerformance(c *gin.Context) {
 
 	studentID := c.Param("id")
 
+	// Authorization: students can only view their own performance
+	role := c.GetString("role")
+	callerID := c.MustGet("user_id").(uint)
+	if role == "student" && fmt.Sprintf("%d", callerID) != studentID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Students can only view their own performance"})
+		return
+	}
+
 	var enrollments []Enrollment
 	db.Where("user_id = ?", studentID).Find(&enrollments)
 
@@ -326,10 +334,4 @@ func getPerformance(c *gin.Context) {
 		"average_score": avg,
 		"gpa":           fmt.Sprintf("%.2f", gpa),
 	})
-}
-
-
-func hashPassword(password string) string {
-	hashed, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	return string(hashed)
 }
