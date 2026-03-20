@@ -1,256 +1,161 @@
-# Student Grade Management System API
+# Student Grade Management API
 
-## Overview
+A RESTful API built with **Go**, **Gin**, **GORM**, and **SQLite** that simulates a university grade management system.
 
-This project is a RESTful API built using Go (Golang) and the Gin framework that simulates a university grade management system.
+---
 
-The system supports:
+## Features
 
-- Role-based authentication (Admin, Teacher, Student)
-- Course creation
-- Student enrollment
-- Grade assignment
-- GPA calculation
-- JWT-based authentication
-- Password hashing using bcrypt
-
-This project demonstrates backend architecture design, middleware implementation, secure authentication, and relational database handling.
+- JWT-based authentication with signing algorithm validation
+- Role-based access control (Admin, Teacher, Student)
+- bcrypt password hashing
+- Pagination on list endpoints
+- Students can only view their own performance
+- Duplicate enrollment prevention
+- Optimized database queries (single JOIN instead of N+1)
+- Unit tested
+- Dockerized with multi-stage build
 
 ---
 
 ## Tech Stack
 
-- Go (Golang)
-- Gin Framework
-- GORM
-- SQLite (glebarez/sqlite driver)
-- JWT (golang-jwt)
-- bcrypt (password hashing)
+| Layer      | Technology                        |
+|------------|-----------------------------------|
+| Language   | Go                                |
+| Framework  | Gin                               |
+| ORM        | GORM                              |
+| Database   | SQLite                            |
+| Auth       | JWT (golang-jwt/v5) + bcrypt      |
+| Container  | Docker (multi-stage, alpine)      |
 
 ---
 
-## System Architecture
-
-- Gin handles HTTP routing.
-- GORM manages database interactions.
-- SQLite provides lightweight local storage.
-- JWT enables stateless authentication.
-- Middleware enforces authentication and role-based authorization.
-- bcrypt securely hashes passwords before storing them.
+## Project Structure
+```
+.
+├── main.go                  
+├── config/
+│   └── config.go            
+├── handlers/
+│   ├── auth.go              
+│   ├── courses.go           
+│   ├── students.go          
+│   ├── grades.go            
+│   └── handlers_test.go     
+├── middleware/
+│   └── middleware.go        
+├── models/
+│   └── models.go            
+├── Dockerfile
+├── .env.example
+└── README.md
+```
 
 ---
 
-## Role-Based Access Control
+## Setup
 
-| Role    | Login | Create Course | Enroll Student | Assign Grade | View GPA |
-|---------|--------|---------------|----------------|--------------|----------|
-| Admin   | Yes    | Yes           | Yes            | No           | Yes      |
-| Teacher | Yes    | No            | No             | Yes          | Yes      |
-| Student | Yes    | No            | No             | No           | Yes      |
+### Environment Variables
+
+Copy `.env.example` to `.env`:
+```bash
+cp .env.example .env
+```
+
+Generate a secure JWT secret:
+```bash
+openssl rand -hex 32
+```
+
+| Variable     | Required | Default          | Description                |
+|-------------|----------|------------------|----------------------------|
+| `JWT_SECRET` | Yes      | insecure default | Secret key for JWT signing |
+
+### Run Locally
+```bash
+go mod tidy
+go run main.go
+```
+
+### Run with Docker
+```bash
+docker build -t grade-api .
+docker run -p 8080:8080 -e JWT_SECRET=your-secret grade-api
+```
+
+### Run Tests
+```bash
+go test ./handlers/...
+```
 
 ---
 
 ## API Endpoints
 
-### Public Routes
+### Public
 
-#### Health Check
-GET /health
+| Method | Endpoint | Description   |
+|--------|----------|---------------|
+| GET    | /health  | Health check  |
+| POST   | /login   | Get JWT token |
 
-#### Login
-POST /login
+### Protected
 
-Example Request Body:
+All protected routes require: `Authorization: Bearer <JWT>`
 
+| Method | Endpoint                    | Roles                   |
+|--------|-----------------------------|-------------------------|
+| GET    | /courses                    | admin, teacher, student |
+| POST   | /courses                    | admin                   |
+| GET    | /students                   | admin, teacher          |
+| POST   | /enroll                     | admin                   |
+| POST   | /grades                     | teacher                 |
+| GET    | /students/:id/performance   | admin, teacher, student* |
+
+*Students can only view their own performance.
+
+List endpoints support pagination: `?page=1&limit=20`
+
+---
+
+## Role-Based Access Control
+
+| Action            | Admin | Teacher | Student |
+|------------------|-------|---------|---------|
+| Create course     | ✅    | ❌      | ❌      |
+| Enroll student    | ✅    | ❌      | ❌      |
+| Assign grade      | ❌    | ✅      | ❌      |
+| List students     | ✅    | ✅      | ❌      |
+| List courses      | ✅    | ✅      | ✅      |
+| View own GPA      | ✅    | ✅      | ✅      |
+| View others' GPA  | ✅    | ✅      | ❌      |
+
+---
+
+## Seed Credentials
+
+| Role    | Email              | Password |
+|---------|--------------------|----------|
+| Admin   | admin@test.com     | 123      |
+| Teacher | teacher@test.com   | 123      |
+| Student | student@test.com   | 123      |
+
+---
+
+## GPA Calculation
+
+1. Fetch all enrollments for the student via a single JOIN query
+2. Compute average score across all graded courses
+3. Convert to 4.0 scale: `GPA = (average / 100) × 4`
+
+Response includes a per-course breakdown:
 ```json
 {
-  "email": "admin@test.com",
-  "password": "123"
+  "average_score": 85,
+  "gpa": "3.40",
+  "breakdown": [
+    { "course": "Mathematics", "score": 85 }
+  ]
 }
 ```
-
----
-
-### Protected Routes
-
-All protected routes require the following header:
-
-Authorization: Bearer <JWT_TOKEN>
-
----
-
-#### Create Course (Admin Only)
-POST /courses
-
-Example Body:
-
-```json
-{
-  "title": "Operating Systems"
-}
-```
-
----
-
-#### Enroll Student (Admin Only)
-POST /enroll
-
-Example Body:
-
-```json
-{
-  "user_id": 3,
-  "course_id": 1
-}
-```
-
----
-
-#### Assign Grade (Teacher Only)
-POST /grades
-
-Example Body:
-
-```json
-{
-  "enrollment_id": 1,
-  "score": 88
-}
-```
-
----
-
-#### View Student Performance
-GET /students/:id/performance
-
-Example:
-GET /students/3/performance
-
-Example Response:
-
-```json
-{
-  "average_score": 88,
-  "gpa": "3.52"
-}
-```
-
----
-
-## GPA Calculation Logic
-
-1. Fetch all enrollments for the student.
-2. Fetch grades linked to those enrollments.
-3. Compute the average score.
-4. Convert percentage to a 4-point GPA scale.
-
-Formula:
-
-GPA = (average_score / 100) * 4
-
----
-
-## Database Schema
-
-### User
-- ID (Primary Key)
-- Name
-- Email (Unique)
-- Password (Hashed)
-- Role (admin / teacher / student)
-
-### Course
-- ID
-- Title
-
-### Enrollment
-- ID
-- UserID (Foreign Key)
-- CourseID (Foreign Key)
-
-### Grade
-- ID
-- EnrollmentID (Foreign Key)
-- Score
-
-Relationships:
-- One User can enroll in multiple Courses.
-- One Course can have multiple Students.
-- One Enrollment has one Grade.
-
----
-
-## Authentication Flow
-
-1. User logs in with email and password.
-2. Password is verified using bcrypt.
-3. A JWT token is generated containing:
-   - user_id
-   - role
-   - expiration time
-4. Token must be included in the Authorization header for protected routes.
-
----
-
-## Security Features
-
-- JWT-based stateless authentication
-- Role-based authorization middleware
-- Password hashing using bcrypt
-- Input validation
-- Token expiration handling
-- Protected endpoints
-
----
-
-## Setup Instructions
-
-### Install Dependencies
-go mod tidy
-
-### Run the Application
-go run main.go
-
-### Reset Database (Optional)
-Delete grades.db and restart the server.
-
----
-
-## Recommended Test Flow
-
-1. Login as Admin
-2. Create Course
-3. Enroll Student
-4. Login as Teacher
-5. Assign Grade
-6. View GPA
-
----
-
-## Design Decisions
-
-- JWT chosen for stateless and scalable authentication.
-- Middleware ensures separation of authentication and business logic.
-- bcrypt used to securely hash passwords.
-- SQLite selected for lightweight and zero-configuration setup.
-- Role-based control models real academic hierarchy.
-
----
-
-## Future Improvements
-
-- Add composite unique constraints to prevent duplicate enrollments
-- Add refresh token support
-- Implement pagination for large datasets
-- Migrate to PostgreSQL for scalability
-- Add structured logging and monitoring
-- Containerize using Docker
-
----
-
-## Repository Contents
-
-- main.go – API implementation
-- README.md – Project documentation
-- DESIGN.md – Detailed design explanation
-- AI_PROMPTS.md – AI prompt transparency
