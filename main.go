@@ -335,3 +335,8 @@ func getPerformance(c *gin.Context) {
 		"gpa":           fmt.Sprintf("%.2f", gpa),
 	})
 }
+
+func hashPassword(password string) string {
+	hashed, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	return string(hashed)
+}
