@@ -14,7 +14,12 @@ import (
 var DB *gorm.DB
 
 func InitDB() {
-	database, err := gorm.Open(sqlite.Open("grades.db"), &gorm.Config{})
+	dbPath := os.Getenv("DB_PATH")
+	if dbPath == "" {
+		dbPath = "grades.db"
+	}
+
+	database, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	if err != nil {
 		log.Fatal("failed to connect to database:", err)
 	}
