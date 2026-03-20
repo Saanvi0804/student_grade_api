@@ -246,6 +246,56 @@
         }
       },
       "response": []
+    },
+    {
+      "name": "List Students",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NzQwOTY3OTAsInJvbGUiOiJhZG1pbiIsInVzZXJfaWQiOjF9.BAPoi1SrFKyKn677J4J9xKxmHKqC-mvxYUP8yBWCsBQ",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "http://localhost:8080/students",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8080",
+          "path": [
+            "students"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "List Courses",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NzQwOTY3OTAsInJvbGUiOiJhZG1pbiIsInVzZXJfaWQiOjF9.BAPoi1SrFKyKn677J4J9xKxmHKqC-mvxYUP8yBWCsBQ",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "http://localhost:8080/courses",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8080",
+          "path": [
+            "courses"
+          ]
+        }
+      },
+      "response": []
     }
   ]
 }
