@@ -23,6 +23,8 @@ func main() {
 	protected := r.Group("/")
 	protected.Use(middleware.Auth())
 
+	protected.GET("/courses", handlers.ListCourses)
+	protected.GET("/students", middleware.RequireRole("admin", "teacher"), handlers.ListStudents)
 	protected.POST("/courses", middleware.RequireRole("admin"), handlers.CreateCourse)
 	protected.POST("/enroll", middleware.RequireRole("admin"), handlers.EnrollStudent)
 	protected.POST("/grades", middleware.RequireRole("teacher"), handlers.AssignGrade)

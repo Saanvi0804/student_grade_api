@@ -1,11 +1,11 @@
 package models
 
 type User struct {
-	ID       uint   `gorm:"primaryKey"`
-	Name     string
-	Email    string `gorm:"unique"`
-	Password string
-	Role     string
+	ID       uint   `gorm:"primaryKey" json:"id"`
+	Name     string `json:"name"`
+	Email    string `gorm:"unique" json:"email"`
+	Password string `gorm:"password" json:"-"`
+	Role     string `json:"role"`
 }
 
 type Course struct {

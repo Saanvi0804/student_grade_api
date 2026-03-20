@@ -10,6 +10,23 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func ListStudents(c *gin.Context) {
+	page, limit, offset := getPagination(c)
+
+	var students []models.User
+	var total int64
+
+	config.DB.Model(&models.User{}).Where("role = ?", "student").Count(&total)
+	config.DB.Where("role = ?", "student").Limit(limit).Offset(offset).Find(&students)
+
+	c.JSON(http.StatusOK, gin.H{
+		"data":  students,
+		"page":  page,
+		"limit": limit,
+		"total": total,
+	})
+}
+
 func EnrollStudent(c *gin.Context) {
 	var input struct {
 		UserID   uint `json:"user_id"`
@@ -26,7 +43,6 @@ func EnrollStudent(c *gin.Context) {
 		return
 	}
 
-	// Prevent duplicate enrollment
 	var existing models.Enrollment
 	if err := config.DB.Where("user_id = ? AND course_id = ?", input.UserID, input.CourseID).First(&existing).Error; err == nil {
 		c.JSON(http.StatusConflict, gin.H{"error": "Student is already enrolled in this course"})
@@ -56,7 +72,6 @@ func GetPerformance(c *gin.Context) {
 		return
 	}
 
-	// Single JOIN query instead of N+1 DB calls
 	type GradeRow struct {
 		CourseTitle string
 		Score       float64
