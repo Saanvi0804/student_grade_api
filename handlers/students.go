@@ -56,30 +56,49 @@ func GetPerformance(c *gin.Context) {
 		return
 	}
 
-	var enrollments []models.Enrollment
-	config.DB.Where("user_id = ?", studentID).Find(&enrollments)
-
-	var total float64
-	var count int64
-
-	for _, e := range enrollments {
-		var grade models.Grade
-		if err := config.DB.Where("enrollment_id = ?", e.ID).First(&grade).Error; err == nil {
-			total += grade.Score
-			count++
-		}
+	// Single JOIN query instead of N+1 DB calls
+	type GradeRow struct {
+		CourseTitle string
+		Score       float64
 	}
 
-	if count == 0 {
-		c.JSON(http.StatusOK, gin.H{"message": "No grades found"})
+	var rows []GradeRow
+	result := config.DB.
+		Table("grades").
+		Select("courses.title as course_title, grades.score").
+		Joins("JOIN enrollments ON enrollments.id = grades.enrollment_id").
+		Joins("JOIN courses ON courses.id = enrollments.course_id").
+		Where("enrollments.user_id = ?", studentID).
+		Scan(&rows)
+
+	if result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve grades"})
 		return
 	}
 
-	avg := total / float64(count)
+	if len(rows) == 0 {
+		c.JSON(http.StatusOK, gin.H{"message": "No grades found for this student"})
+		return
+	}
+
+	var total float64
+	type CourseGrade struct {
+		Course string  `json:"course"`
+		Score  float64 `json:"score"`
+	}
+	var breakdown []CourseGrade
+
+	for _, row := range rows {
+		total += row.Score
+		breakdown = append(breakdown, CourseGrade{Course: row.CourseTitle, Score: row.Score})
+	}
+
+	avg := total / float64(len(rows))
 	gpa := (avg / 100) * 4
 
 	c.JSON(http.StatusOK, gin.H{
 		"average_score": avg,
 		"gpa":           fmt.Sprintf("%.2f", gpa),
+		"breakdown":     breakdown,
 	})
 }
