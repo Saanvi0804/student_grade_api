@@ -26,6 +26,13 @@ func EnrollStudent(c *gin.Context) {
 		return
 	}
 
+	// Prevent duplicate enrollment
+	var existing models.Enrollment
+	if err := config.DB.Where("user_id = ? AND course_id = ?", input.UserID, input.CourseID).First(&existing).Error; err == nil {
+		c.JSON(http.StatusConflict, gin.H{"error": "Student is already enrolled in this course"})
+		return
+	}
+
 	enrollment := models.Enrollment{
 		UserID:   input.UserID,
 		CourseID: input.CourseID,
